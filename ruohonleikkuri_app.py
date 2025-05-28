@@ -1,86 +1,83 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-import time
 from datetime import timedelta
 
 st.set_page_config(page_title="Robottiruohonleikkuri", layout="wide")
-st.title("🌱 Robottiruohonleikkurin simulaatio")
+st.title("🌿 Robottiruohonleikkurin simulaatio – Leikkuuraidat näkyvissä")
 
 st.sidebar.header("🔧 Parametrit")
 
+# Käyttäjän syötteet
 pituus = st.sidebar.number_input("Alueen pituus (m)", min_value=1, value=10)
 leveys = st.sidebar.number_input("Alueen leveys (m)", min_value=1, value=10)
 leikkuusade = st.sidebar.number_input("Leikkuusäde (cm)", min_value=1, value=9)
-nopeus_kmh = st.sidebar.number_input("Robottiruohonleikkurin nopeus (km/h)", min_value=0.1, value=1.0)
+nopeus_kmh = st.sidebar.number_input("Nopeus (km/h)", min_value=0.1, value=1.0)
 nopeutuskerroin = st.sidebar.slider("Simulaation nopeutuskerroin", 1, 100, 30)
 
 if st.button("🚀 Käynnistä simulaatio"):
     st.subheader("Simulaatio käynnissä...")
 
-    dx = 0.05  # ruudukon tarkkuus (metreinä)
+    leikkuuhalkaisija = 2 * leikkuusade / 100  # m
+    dx = 0.05
     ny = int(pituus / dx)
     nx = int(leveys / dx)
-    ruutu = np.zeros((ny, nx), dtype=bool)
 
-    x = np.random.randint(0, nx)
-    y = np.random.randint(0, ny)
+    # Robottiruohonleikkurin alkusijainti ja suunta
+    x = np.random.uniform(0, leveys)
+    y = np.random.uniform(0, pituus)
     suunta = np.random.rand() * 2 * np.pi
-    leikkuusade_m = leikkuusade / 100
-
     nopeus_mps = nopeus_kmh * 1000 / 3600
     dt = 1
-    askel = int(nopeus_mps * dt / dx)
+    askel_x = np.cos(suunta) * nopeus_mps * dt
+    askel_y = np.sin(suunta) * nopeus_mps * dt
     t = 0
-    max_iter = 1000000
 
-    # Tallennetaan kuljettu reitti
-    reitti_x = [x]
-    reitti_y = [y]
+    viivat = []  # Tallennetaan (x1, y1, x2, y2)
+    x1, y1 = x, y
 
     fig, ax = plt.subplots(figsize=(6, 6))
     plot = st.empty()
-    status = st.empty()
 
-    for i in range(max_iter):
-        # Leikkaa ympyrä
-        Y, X = np.ogrid[:ny, :nx]
-        maski = (X * dx - x * dx)**2 + (Y * dx - y * dx)**2 <= leikkuusade_m**2
-        ruutu[maski] = True
+    while True:
+        # Uusi sijainti
+        x2 = x1 + askel_x
+        y2 = y1 + askel_y
 
-        # Laske uusi paikka
-        uusi_x = x + int(np.cos(suunta) * askel)
-        uusi_y = y + int(np.sin(suunta) * askel)
-
-        # Törmäys tarkistus
-        if not (0 <= uusi_x < nx) or not (0 <= uusi_y < ny):
-            suunta += np.pi + (np.random.rand() - 0.5) * np.pi / 2
+        # Tarkistetaan reunan ylitys
+        if not (0 <= x2 <= leveys) or not (0 <= y2 <= pituus):
+            suunta = np.random.rand() * 2 * np.pi
+            askel_x = np.cos(suunta) * nopeus_mps * dt
+            askel_y = np.sin(suunta) * nopeus_mps * dt
+            x1, y1 = x2 if 0 <= x2 <= leveys else np.clip(x2, 0, leveys), y2 if 0 <= y2 <= pituus else np.clip(y2, 0, pituus)
             continue
-        else:
-            x, y = uusi_x, uusi_y
-            reitti_x.append(x)
-            reitti_y.append(y)
 
-        # Visualisointi
-        if i % nopeutuskerroin == 0:
-            ax.clear()
-            ax.imshow(ruutu, cmap='Greens', origin='lower')
-            ax.plot(reitti_x, reitti_y, color='blue', linewidth=1, alpha=0.6, label='Reitti')
-            ax.plot(x, y, 'ro', label='Robotti')
-            ax.set_title(f"Aika: {str(timedelta(seconds=t))} — Leikattu: {np.mean(ruutu) * 100:.1f}%")
-            ax.axis('off')
-            plot.pyplot(fig)
-
-        if np.all(ruutu):
-            break
+        # Tallenna leikkuujälki
+        viivat.append(((x1, y1), (x2, y2)))
+        x1, y1 = x2, y2
         t += dt
 
-    # Valmis!
-    kesto = timedelta(seconds=t)
-    st.success("✅ Alue on kokonaan leikattu!")
+        # Piirrä tietyin välein
+        if len(viivat) % nopeutuskerroin == 0:
+            ax.clear()
+            for (xa, ya), (xb, yb) in viivat:
+                ax.plot([xa, xb], [ya, yb], color='green', linewidth=leikkuuhalkaisija/dx, alpha=0.7)
+
+            ax.set_xlim(0, leveys)
+            ax.set_ylim(0, pituus)
+            ax.set_aspect('equal')
+            ax.axis('off')
+            ax.set_title(f"Aika: {str(timedelta(seconds=t))}, Viivoja: {len(viivat)}")
+            plot.pyplot(fig)
+
+        # Lopetusehto: kenttä "näennäisesti" täynnä
+        if len(viivat) > 5000:
+            break
+
+    st.success("✅ Simulaatio valmis!")
     st.markdown(f"""
-    - ⏱️ **Aikaa kului:** {str(kesto)}
+    - ⏱️ **Aikaa kului:** {str(timedelta(seconds=t))}
     - 🟩 **Leikattu alue:** {pituus * leveys:.1f} m²
-    - 🚜 **Leikkuusäde:** {leikkuusade} cm (halkaisija {leikkuusade * 2} cm)
-    - 💨 **Nopeus:** {nopeus_kmh} km/h
+    - ✂️ **Leikkuuhalkaisija:** {leikkuuhalkaisija:.2f} m
+    - 🚜 **Reittejä piirretty:** {len(viivat)}
     """)
