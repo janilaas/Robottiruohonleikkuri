@@ -32,6 +32,7 @@ if st.button("🚀 Käynnistä simulaatio"):
     askel_x = np.cos(suunta) * nopeus_mps * dt
     askel_y = np.sin(suunta) * nopeus_mps * dt
     t = 0
+    kaannokset = 0  # Lisätty käännöslaskuri
 
     viivat = []  # Tallennetaan (x1, y1, x2, y2)
     x1, y1 = x, y
@@ -46,10 +47,13 @@ if st.button("🚀 Käynnistä simulaatio"):
 
         # Tarkistetaan reunan ylitys
         if not (0 <= x2 <= leveys) or not (0 <= y2 <= pituus):
+            # Käännös = törmäys!
+            kaannokset += 1
             suunta = np.random.rand() * 2 * np.pi
             askel_x = np.cos(suunta) * nopeus_mps * dt
             askel_y = np.sin(suunta) * nopeus_mps * dt
-            x1, y1 = x2 if 0 <= x2 <= leveys else np.clip(x2, 0, leveys), y2 if 0 <= y2 <= pituus else np.clip(y2, 0, pituus)
+            x1 = np.clip(x2, 0, leveys)
+            y1 = np.clip(y2, 0, pituus)
             continue
 
         # Tallenna leikkuujälki
@@ -67,17 +71,17 @@ if st.button("🚀 Käynnistä simulaatio"):
             ax.set_ylim(0, pituus)
             ax.set_aspect('equal')
             ax.axis('off')
-            ax.set_title(f"Aika: {str(timedelta(seconds=t))}, Viivoja: {len(viivat)}")
+            ax.set_title(f"Aika: {str(timedelta(seconds=t))}, Käännöksiä: {kaannokset}")
             plot.pyplot(fig)
 
-        # Lopetusehto: kenttä "näennäisesti" täynnä
-        if len(viivat) > 5000:
+        # Lopetusehto
+        if kaannokset > 1000:
             break
 
     st.success("✅ Simulaatio valmis!")
     st.markdown(f"""
     - ⏱️ **Aikaa kului:** {str(timedelta(seconds=t))}
+    - 🔁 **Käännöksiä tehtiin:** {kaannokset}
     - 🟩 **Leikattu alue:** {pituus * leveys:.1f} m²
     - ✂️ **Leikkuuhalkaisija:** {leikkuuhalkaisija:.2f} m
-    - 🚜 **Reittejä piirretty:** {len(viivat)}
     """)
