@@ -22,8 +22,8 @@ if st.button("🚀 Käynnistä simulaatio"):
     dx = 0.05
     ny = int(pituus / dx)
     nx = int(leveys / dx)
+    grid = np.zeros((ny, nx))  # Alueen peitto, 0=leikkaamaton, 1=leikattu
 
-    # Robottiruohonleikkurin alkusijainti ja suunta
     x = np.random.uniform(0, leveys)
     y = np.random.uniform(0, pituus)
     suunta = np.random.rand() * 2 * np.pi
@@ -32,22 +32,28 @@ if st.button("🚀 Käynnistä simulaatio"):
     askel_x = np.cos(suunta) * nopeus_mps * dt
     askel_y = np.sin(suunta) * nopeus_mps * dt
     t = 0
-    kaannokset = 0  # Lisätty käännöslaskuri
+    kaannokset = 0
 
-    viivat = []  # Tallennetaan (x1, y1, x2, y2)
+    viivat = []
     x1, y1 = x, y
 
     fig, ax = plt.subplots(figsize=(6, 6))
     plot = st.empty()
 
+    def merkitse_leikattu(x, y):
+        cx = int(x / dx)
+        cy = int(y / dx)
+        r = int(leikkuuhalkaisija / (2 * dx))
+        for i in range(max(0, cy - r), min(ny, cy + r)):
+            for j in range(max(0, cx - r), min(nx, cx + r)):
+                if np.hypot((j - cx), (i - cy)) * dx <= leikkuuhalkaisija / 2:
+                    grid[i, j] = 1
+
     while True:
-        # Uusi sijainti
         x2 = x1 + askel_x
         y2 = y1 + askel_y
 
-        # Tarkistetaan reunan ylitys
         if not (0 <= x2 <= leveys) or not (0 <= y2 <= pituus):
-            # Käännös = törmäys!
             kaannokset += 1
             suunta = np.random.rand() * 2 * np.pi
             askel_x = np.cos(suunta) * nopeus_mps * dt
@@ -56,12 +62,19 @@ if st.button("🚀 Käynnistä simulaatio"):
             y1 = np.clip(y2, 0, pituus)
             continue
 
-        # Tallenna leikkuujälki
         viivat.append(((x1, y1), (x2, y2)))
+
+        # Merkitään leikkuualuetta täksi viivan matkaksi
+        px, py = x1, y1
+        steps = int(np.hypot(x2 - x1, y2 - y1) / dx)
+        for s in range(steps):
+            px += (x2 - x1) / steps
+            py += (y2 - y1) / steps
+            merkitse_leikattu(px, py)
+
         x1, y1 = x2, y2
         t += dt
 
-        # Piirrä tietyin välein
         if len(viivat) % nopeutuskerroin == 0:
             ax.clear()
             for (xa, ya), (xb, yb) in viivat:
@@ -74,8 +87,8 @@ if st.button("🚀 Käynnistä simulaatio"):
             ax.set_title(f"Aika: {str(timedelta(seconds=t))}, Käännöksiä: {kaannokset}")
             plot.pyplot(fig)
 
-        # Lopetusehto
-        if kaannokset > 1000:
+        # Lopetetaan kun kaikki ruudut on leikattu
+        if np.all(grid == 1):
             break
 
     st.success("✅ Simulaatio valmis!")
