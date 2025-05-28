@@ -18,7 +18,7 @@ nopeutuskerroin = st.sidebar.slider("Simulaation nopeutuskerroin", 1, 100, 30)
 if st.button("🚀 Käynnistä simulaatio"):
     st.subheader("Simulaatio käynnissä...")
 
-    dx = 0.05  # ruudukon tarkkuus metreinä
+    dx = 0.05  # ruudukon tarkkuus (metreinä)
     ny = int(pituus / dx)
     nx = int(leveys / dx)
     ruutu = np.zeros((ny, nx), dtype=bool)
@@ -34,6 +34,10 @@ if st.button("🚀 Käynnistä simulaatio"):
     t = 0
     max_iter = 1000000
 
+    # Tallennetaan kuljettu reitti
+    reitti_x = [x]
+    reitti_y = [y]
+
     fig, ax = plt.subplots(figsize=(6, 6))
     plot = st.empty()
     status = st.empty()
@@ -48,18 +52,21 @@ if st.button("🚀 Käynnistä simulaatio"):
         uusi_x = x + int(np.cos(suunta) * askel)
         uusi_y = y + int(np.sin(suunta) * askel)
 
-        # Jos uusi paikka ulkona rajojen, käänny takaisinpäin satunnaisesti
+        # Törmäys tarkistus
         if not (0 <= uusi_x < nx) or not (0 <= uusi_y < ny):
             suunta += np.pi + (np.random.rand() - 0.5) * np.pi / 2
-            continue  # pysy paikoillaan tällä kierroksella
+            continue
         else:
             x, y = uusi_x, uusi_y
+            reitti_x.append(x)
+            reitti_y.append(y)
 
         # Visualisointi
         if i % nopeutuskerroin == 0:
             ax.clear()
             ax.imshow(ruutu, cmap='Greens', origin='lower')
-            ax.plot(x, y, 'ro')
+            ax.plot(reitti_x, reitti_y, color='blue', linewidth=1, alpha=0.6, label='Reitti')
+            ax.plot(x, y, 'ro', label='Robotti')
             ax.set_title(f"Aika: {str(timedelta(seconds=t))} — Leikattu: {np.mean(ruutu) * 100:.1f}%")
             ax.axis('off')
             plot.pyplot(fig)
@@ -77,4 +84,3 @@ if st.button("🚀 Käynnistä simulaatio"):
     - 🚜 **Leikkuusäde:** {leikkuusade} cm (halkaisija {leikkuusade * 2} cm)
     - 💨 **Nopeus:** {nopeus_kmh} km/h
     """)
-
