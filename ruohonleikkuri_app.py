@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from datetime import timedelta
 
 st.set_page_config(page_title="Robottiruohonleikkuri", layout="wide")
-st.title("🌿 Robottiruohonleikkurin simulaatio – Leikkuuraidat näkyvissä")
+st.title("🌿 Robottiruohonleikkurin simulaatio – Leikkuupinta-ala näkyvissä")
 
 st.sidebar.header("🔧 Parametrit")
 
@@ -32,11 +32,11 @@ if st.button("🚀 Käynnistä simulaatio"):
     askel_x = np.cos(suunta) * nopeus_mps * dt
     askel_y = np.sin(suunta) * nopeus_mps * dt
     t = 0
-    kaannokset = 0
 
-    viivat = []
+    # Alustetaan leikkurin sijainti ja liikemäärät
     x1, y1 = x, y
 
+    # Visualisointiin
     fig, ax = plt.subplots(figsize=(6, 6))
     plot = st.empty()
 
@@ -53,8 +53,8 @@ if st.button("🚀 Käynnistä simulaatio"):
         x2 = x1 + askel_x
         y2 = y1 + askel_y
 
+        # Jos osutaan reunoihin, vaihdetaan suunta
         if not (0 <= x2 <= leveys) or not (0 <= y2 <= pituus):
-            kaannokset += 1
             suunta = np.random.rand() * 2 * np.pi
             askel_x = np.cos(suunta) * nopeus_mps * dt
             askel_y = np.sin(suunta) * nopeus_mps * dt
@@ -62,9 +62,7 @@ if st.button("🚀 Käynnistä simulaatio"):
             y1 = np.clip(y2, 0, pituus)
             continue
 
-        viivat.append(((x1, y1), (x2, y2)))
-
-        # Merkitään leikkuualuetta täksi viivan matkaksi
+        # Leikkausliike
         px, py = x1, y1
         steps = int(np.hypot(x2 - x1, y2 - y1) / dx)
         for s in range(steps):
@@ -75,26 +73,29 @@ if st.button("🚀 Käynnistä simulaatio"):
         x1, y1 = x2, y2
         t += dt
 
-        if len(viivat) % nopeutuskerroin == 0:
-            ax.clear()
-            for (xa, ya), (xb, yb) in viivat:
-                ax.plot([xa, xb], [ya, yb], color='green', linewidth=leikkuuhalkaisija/dx, alpha=0.7)
+        # Päivitetään visualisointi: leikattu pinta-ala prosentteina
+        leikattu_ala = np.sum(grid) * (dx ** 2)
+        koko_ala = pituus * leveys
+        leikattu_prosentti = (leikattu_ala / koko_ala) * 100
 
+        if len(np.where(grid == 1)[0]) % nopeutuskerroin == 0:
+            ax.clear()
+            # Piirretään leikkausalueen päivitys
+            ax.imshow(grid, extent=[0, leveys, 0, pituus], origin='lower', cmap='Greens', alpha=0.8)
             ax.set_xlim(0, leveys)
             ax.set_ylim(0, pituus)
             ax.set_aspect('equal')
             ax.axis('off')
-            ax.set_title(f"Aika: {str(timedelta(seconds=t))}, Käännöksiä: {kaannokset}")
+            ax.set_title(f"Aika: {str(timedelta(seconds=t))} | Leikattu osuus: {leikattu_prosentti:.1f}%")
             plot.pyplot(fig)
 
-        # Lopetetaan kun kaikki ruudut on leikattu
+        # Lopetetaan, kun koko alue on leikattu
         if np.all(grid == 1):
             break
 
     st.success("✅ Simulaatio valmis!")
     st.markdown(f"""
     - ⏱️ **Aikaa kului:** {str(timedelta(seconds=t))}
-    - 🔁 **Käännöksiä tehtiin:** {kaannokset}
-    - 🟩 **Leikattu alue:** {pituus * leveys:.1f} m²
+    - 🟩 **Leikattua pinta-alaa:** {leikattu_prosentti:.2f} %
     - ✂️ **Leikkuuhalkaisija:** {leikkuuhalkaisija:.2f} m
     """)
