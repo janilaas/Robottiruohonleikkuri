@@ -2,61 +2,78 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import random
 
-st.title(\"🌱 Robottiruohonleikkurin simulaatio\")
+st.set_page_config(page_title="Robottiruohonleikkuri", layout="wide")
+st.title("🌱 Robottiruohonleikkurin simulaatio")
 
-# Käyttäjän syötteet
-radius_cm = st.number_input(\"Leikkuusäde (cm)\", min_value=1, max_value=100, value=18)
-speed_kmh = st.number_input(\"Nopeus (km/h)\", min_value=0.1, max_value=10.0, value=1.0)
-width_m = st.number_input(\"Alueen leveys (m)\", min_value=1, max_value=100, value=10)
-height_m = st.number_input(\"Alueen pituus (m)\", min_value=1, max_value=100, value=10)
-speedup = st.slider(\"Simulaation nopeutuskerroin\", min_value=1, max_value=100, value=20)
+st.sidebar.header("🔧 Parametrit")
 
-start = st.button(\"Käynnistä simulaatio\")
+pituus = st.sidebar.number_input("Alueen pituus (m)", min_value=1, value=10)
+leveys = st.sidebar.number_input("Alueen leveys (m)", min_value=1, value=10)
+leikkuusade = st.sidebar.number_input("Leikkuusäde (cm)", min_value=1, value=18)
+nopeus_kmh = st.sidebar.number_input("Robottiruohonleikkurin nopeus (km/h)", min_value=1.0, value=1.0)
+nopeutuskerroin = st.sidebar.slider("Simulaation nopeutuskerroin", 1, 100, 30)
 
-if start:
-    st.subheader(\"🔄 Simulointi käynnissä...\")
-    fig, ax = plt.subplots()
+if st.button("🚀 Käynnistä simulaatio"):
+    st.subheader("Simulaatio käynnissä...")
 
-    cell_size = 5  # 1 metri = 5 pikseliä
-    grid_w = int(width_m * cell_size)
-    grid_h = int(height_m * cell_size)
-    grid = np.zeros((grid_h, grid_w), dtype=bool)
+    # Yksiköt
+    dx = 0.05  # resoluutio (metreinä)
+    ny = int(pituus / dx)
+    nx = int(leveys / dx)
+    ruutu = np.zeros((ny, nx), dtype=bool)
 
-    total_cells = grid_w * grid_h
-    cut_cells = 0
-    radius_px = int((radius_cm / 100) * cell_size)
+    # Alkuarvot
+    x = np.random.randint(0, nx)
+    y = np.random.randint(0, ny)
+    suunta = np.random.rand() * 2 * np.pi
+    leikkuusade_m = leikkuusade / 100
 
-    x, y = random.randint(0, grid_w - 1), random.randint(0, grid_h - 1)
+    # Ajan ja nopeuden asetukset
+    nopeus_mps = nopeus_kmh * 1000 / 3600
+    dt = 1
+    askel = int(nopeus_mps * dt / dx)
+    t = 0
+    max_iter = 1000000
 
-    plot = st.pyplot(fig)
-    start_time = time.time()
+    fig, ax = plt.subplots(figsize=(6, 6))
+    plot = st.empty()
+    status = st.empty()
 
-    while cut_cells < total_cells:
-        dx = random.randint(-radius_px, radius_px)
-        dy = random.randint(-radius_px, radius_px)
-        x = max(0, min(x + dx, grid_w - 1))
-        y = max(0, min(y + dy, grid_h - 1))
+    for i in range(max_iter):
+        # Leikataan ympyrä ruudulta
+        Y, X = np.ogrid[:ny, :nx]
+        maski = (X * dx - x * dx)**2 + (Y * dx - y * dx)**2 <= leikkuusade_m**2
+        ruutu[maski] = True
 
-        for i in range(-radius_px, radius_px):
-            for j in range(-radius_px, radius_px):
-                xi = x + i
-                yj = y + j
-                if 0 <= xi < grid_w and 0 <= yj < grid_h:
-                    if not grid[yj, xi]:
-                        grid[yj, xi] = True
-                        cut_cells += 1
+        # Liikuta robottia satunnaisesti
+        suunta += np.random.randn() * 0.5
+        x += int(np.cos(suunta) * askel)
+        y += int(np.sin(suunta) * askel)
 
-        if random.random() < 0.1:  # päivitä kuva harvemmin suorituskyvyn vuoksi
+        # Tarkista rajat
+        x = max(0, min(nx - 1, x))
+        y = max(0, min(ny - 1, y))
+
+        # Visualisointi
+        if i % nopeutuskerroin == 0:
             ax.clear()
-            ax.imshow(grid, cmap=\"Greens\", origin=\"lower\")
-            ax.set_title(\"Leikattu alue\")  
-            ax.axis(\"off\")
+            ax.imshow(ruutu, cmap='Greens', origin='lower')
+            ax.plot(x, y, 'ro')
+            ax.set_title(f"Aika: {int(t)} s — Leikattu: {np.mean(ruutu) * 100:.1f}%")
+            ax.axis('off')
             plot.pyplot(fig)
 
-        time.sleep(0.01 / speedup)
+        if np.all(ruutu):
+            break
+        t += dt
 
-    duration = time.time() - start_time
-    st.success(\"🌟 Simulaatio valmis!\")
-    st.markdown(f\"**Kesto (simuloituna):** {duration:.2f} s\")\n    st.markdown(f\"**Leikattu pinta-ala:** {width_m * height_m:.2f} m²\")\n    st.markdown(f\"**Leikkuusäde:** {radius_cm} cm\")\n    st.markdown(f\"**Nopeus:** {speed_kmh} km/h\")
+    # Yhteenveto
+    st.success("✅ Alue on kokonaan leikattu!")
+    st.markdown(f"""
+    - ⏱️ **Aikaa kului:** {t} sekuntia ({t/60:.1f} min)
+    - 🟩 **Leikattu alue:** {pituus * leveys} m²
+    - 🚜 **Leikkuusäde:** {leikkuusade} cm
+    - 💨 **Nopeus:** {nopeus_kmh} km/h
+    """)
+
