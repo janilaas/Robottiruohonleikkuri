@@ -18,8 +18,7 @@ leikkuusade = st.sidebar.number_input("Leikkuusäde (cm)", min_value=1, value=9)
 nopeus_kmh = st.sidebar.number_input("Nopeus (km/h)", min_value=0.1, value=1.0)
 leikkuuhalkaisija = 2 * leikkuusade / 100  # metreinä
 
-
-def suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuskerroin=10, nayta_kuva=False):
+def suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuskerroin=10, nayta_kuva=False, tallenna_data=False):
     dx = 0.05
     ny = int(pituus / dx)
     nx = int(leveys / dx)
@@ -36,6 +35,8 @@ def suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuske
     kaannokset = 0
     x1, y1 = x, y
 
+    data = []
+
     def merkitse_leikattu(x, y):
         cx = int(x / dx)
         cy = int(y / dx)
@@ -47,6 +48,9 @@ def suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuske
 
     fig, ax = plt.subplots(figsize=(6, 6)) if nayta_kuva else (None, None)
     plot = st.empty() if nayta_kuva else None
+
+    seuraava_raportointi = 0
+    koko_ala = pituus * leveys
 
     while not np.all(grid == 1):
         x2 = x1 + askel_x
@@ -71,6 +75,18 @@ def suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuske
         x1, y1 = x2, y2
         t += dt
 
+        if tallenna_data and t >= seuraava_raportointi:
+            leikattu_ala = np.sum(grid) * (dx ** 2)
+            leikattu_pros = 100 * leikattu_ala / koko_ala
+            leikkaamaton_pros = 100 - leikattu_pros
+            data.append({
+                "Aika (min)": t // 60,
+                "Leikattu %": round(leikattu_pros, 2),
+                "Leikkaamaton %": round(leikkaamaton_pros, 2),
+                "Käännökset": kaannokset
+            })
+            seuraava_raportointi += 60
+
         if nayta_kuva and (np.sum(grid) % nopeutuskerroin == 0):
             ax.clear()
             ax.imshow(grid, extent=[0, leveys, 0, pituus], origin='lower', cmap='Greens', alpha=0.8)
@@ -82,14 +98,13 @@ def suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuske
             plot.pyplot(fig)
 
     leikattu_ala = np.sum(grid) * (dx ** 2)
-    return t, leikattu_ala, kaannokset
-
+    return t, leikattu_ala, kaannokset, data
 
 if tila == "Luo kerta-analyysi":
     nopeutuskerroin = st.sidebar.slider("Simulaation nopeutuskerroin", 1, 100, 30)
     if st.button("🚀 Käynnistä simulaatio"):
         st.subheader("Simulaatio käynnissä...")
-        t, leikattu_ala, kaannokset = suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuskerroin, True)
+        t, leikattu_ala, kaannokset, data = suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh, nopeutuskerroin, True, True)
         st.success("✅ Simulaatio valmis!")
         st.markdown(f"""
         - ⏱️ **Aikaa kului:** {str(timedelta(seconds=t))}
@@ -98,13 +113,23 @@ if tila == "Luo kerta-analyysi":
         - ✂️ **Leikkuuhalkaisija:** {leikkuuhalkaisija:.2f} m
         """)
 
+        if st.checkbox("📥 Lataa simulaation CSV-data"):
+            df = pd.DataFrame(data)
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Lataa CSV-tiedosto",
+                data=csv,
+                file_name='kerta_analyysi_data.csv',
+                mime='text/csv'
+            )
+
 elif tila == "Luo data-aineisto analyysia varten":
     n = st.sidebar.number_input("Simulaatioiden lukumäärä", min_value=1, value=10)
     if st.button("📊 Suorita analyysisimulaatiot"):
         tulokset = []
         st.subheader("Simulaatiot käynnissä...")
         for i in range(n):
-            t, leikattu_ala, kaannokset = suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh)
+            t, leikattu_ala, kaannokset, _ = suorita_simulaatio(pituus, leveys, leikkuuhalkaisija, nopeus_kmh)
             tulokset.append({
                 "Simulaatio": i + 1,
                 "Aika (s)": t,
