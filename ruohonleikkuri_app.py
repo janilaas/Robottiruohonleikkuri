@@ -113,15 +113,14 @@ if tila == "Luo kerta-analyysi":
         - ✂️ **Leikkuuhalkaisija:** {leikkuuhalkaisija:.2f} m
         """)
 
-        if st.checkbox("📥 Lataa simulaation CSV-data"):
-            df = pd.DataFrame(data)
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Lataa CSV-tiedosto",
-                data=csv,
-                file_name='kerta_analyysi_data.csv',
-                mime='text/csv'
-            )
+        df = pd.DataFrame(data)
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Lataa simulaation CSV-data",
+            data=csv,
+            file_name='kerta_analyysi_data.csv',
+            mime='text/csv'
+        )
 
 elif tila == "Luo data-aineisto analyysia varten":
     n = st.sidebar.number_input("Simulaatioiden lukumäärä", min_value=1, value=10)
